@@ -47,7 +47,3 @@ Any machine that gets a different hash is not running the same workload.
 - Lease and payment logic for compute
 
 Built from an iPad in GitHub Codespaces.
-EOF
-git add README.md
-git commit -m "Add README"
-git push
