@@ -1,4 +1,3 @@
-# solarnode-simcat > README.md << 'EOF'
 # SolarNode Sim
 
 A working software prototype for SolarNode: solar-powered compute with energy use that anyone can verify.
