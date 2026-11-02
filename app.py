@@ -16,11 +16,28 @@ else:
 
 app = FastAPI()
 LOAD_W = 15
+METER = os.environ.get("METER", "SIMULATED")  # set METER=REAL once hardware is attached
 
-def solar_watts():
+
+def _simulated_watts():
     t = datetime.datetime.now()
     h = t.hour + t.minute / 60
     return max(0, 400 * math.sin(math.pi * (h - 6) / 12))
+
+
+def _meter_watts():
+    # Hardware hook. Replace this body when the meter arrives
+    # (INA219 / smart plug / inverter API). Return watts as a float.
+    raise NotImplementedError("No meter attached yet")
+
+
+def read_watts():
+    """The only place energy input enters the system.
+    Returns (watts, source) where source is "REAL" or "SIMULATED"."""
+    if METER == "REAL":
+        return _meter_watts(), "REAL"
+    return _simulated_watts(), "SIMULATED"
+
 
 @app.post("/job")
 def job(rounds: int = 2_000_000):
@@ -29,11 +46,14 @@ def job(rounds: int = 2_000_000):
     for _ in range(rounds):
         h = hashlib.sha256(h).digest()
     secs = time.perf_counter() - t0
+    watts, source = read_watts()
     rec = {
         "node": "sim-1", "rounds": rounds, "hash": h.hex(),
         "secs": round(secs, 2),
         "wh": round(LOAD_W * secs / 3600, 5),
-        "solar_pct": round(min(100, solar_watts() / LOAD_W * 100)),
+        "watts": round(watts, 1),
+        "solar_pct": round(min(100, watts / LOAD_W * 100)),
+        "source": source,
         "ts": int(time.time()),
     }
     memo = Memo(memo_type=b"solarnode".hex(),
@@ -41,6 +61,7 @@ def job(rounds: int = 2_000_000):
     submit_and_wait(AccountSet(account=wallet.address, memos=[memo]),
                     client, wallet)
     return rec
+
 
 @app.get("/log")
 def log():
@@ -54,6 +75,7 @@ def log():
                 bytes.fromhex(m["Memo"]["MemoData"]).decode()))
     return out
 
+
 PAGE = """<meta name=viewport content="width=device-width,initial-scale=1">
 <body style="font-family:sans-serif;background:#111;color:#fb3;padding:16px">
 <h2>SolarNode sim</h2>
@@ -66,6 +88,7 @@ async function load(){const r=await(await fetch('/log')).json();
 o.textContent=r.map(x=>JSON.stringify(x,null,1)).join('\\n')}
 load()
 </script>"""
+
 
 @app.get("/", response_class=HTMLResponse)
 def home():
